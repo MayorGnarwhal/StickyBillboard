@@ -1,5 +1,8 @@
+debug.setmemorycategory("StickyBillboard")
+
 local StickyBillboard = {}
 StickyBillboard.__index = StickyBillboard
+StickyBillboard.ClassName = "StickyBillboard"
 
 --// Dependencies
 local GuiService = game:GetService("GuiService")
@@ -20,6 +23,7 @@ export type UpdateClosure = (onScreen: boolean, screenDirection: Vector2?) -> ni
 export type Adornee = Vector3 | BasePart | Model
 export type Options = {
 	MaxDistance: number?,
+	ZIndex: number?,
 
 	OffScreenSize: UDim2?,
 	OffScreenSizeMult: number?,
@@ -40,7 +44,6 @@ export type ClassType = typeof(setmetatable({} :: {
 	Container: Frame,
 
 	OnScreen: boolean,
-	WithinMaxDistance: boolean,
 	ScreenDirection: Vector2,
 	Enabled: boolean,
 
@@ -66,14 +69,13 @@ local function AssertOptionsType(options: Options, optionKey: string, typeName: 
 		`Invalid option '{optionKey}' given (expected {typeName}, got {typeof(value)})`)
 end
 
-
 --// Constructor
 function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options: Options?): ClassType
 	options = options and table.clone(options) or {}
 	local sizedWithScale = (billboard.Size.X.Scale ~= 0 or billboard.Size.Y.Scale ~= 0) 
 
 	if sizedWithScale then
-		assert(options.OffScreenSize ~= nil, "OffScreenSize must be specified for Billboards sized with Scale")
+		assert(options.OffScreenSize ~= nil, "OffScreenSize must be specified for BillboardGuis that are sized with Scale")
 	end
 	AssertOptionsType(options, "MaxDistance", "number")
 	AssertOptionsType(options, "OffScreenSize", "UDim2")
@@ -91,19 +93,23 @@ function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options:
 
 	self.Adornee = adornee
 	self._size = billboard.Size
+	self._sizedWithScale = sizedWithScale
 	self._extentsOffset = billboard.ExtentsOffset
 	self._extentsOffsetWorldSpace = billboard.ExtentsOffsetWorldSpace
 	self._studsOffset = billboard.StudsOffset
 	self._studsOffsetWorldSpace = billboard.StudsOffsetWorldSpace
 	self._sizeOffset = billboard.SizeOffset
-	self._sizedWithScale = sizedWithScale
 
 	self.Container = Instance.new("Frame")
+	self.Container.Name = billboard.Name
 	self.Container.Size = self._size
 	self.Container.BackgroundTransparency = 1
 	for i, child in pairs(billboard:GetChildren()) do
 		child:Clone().Parent = self.Container
 	end
+	self.Container.ClipsDescendants = billboard.ClipsDescendants
+	self.Container.AutoLocalize = billboard.AutoLocalize
+	self.Container.RootLocalizationTable = billboard.RootLocalizationTable
 	self.Container.Interactable = false
 	self.Container.Active = false
 	self.Container.Parent = ScreenGui
@@ -140,11 +146,11 @@ function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options:
 	self._options.PaddingRight += xPadding + UDim.new(0, self._offScreenSize.X.Offset * (1 - self._options.AnchorPoint.X))
 
 	self.OnScreen = false
-	self.WithinMaxDistance = false
 	self.ScreenDirection = Vector2.zero
 	self.Enabled = billboard.Enabled
 
 	self.Container.AnchorPoint = self._options.AnchorPoint
+	self.Container.ZIndex = self._options.ZIndex or 1
 
 	self._onUpdate = {}
 	self._connection = RunService.PostSimulation:Connect(function(dt)
@@ -161,18 +167,20 @@ function StickyBillboard.Update(self: ClassType)
 		self.Container.Visible = false
 		return
 	end
+	
+	debug.profilebegin("StickyBillboard")
 
 	local worldPosition = self:WorldPosition()
 	local screenPoint, isVisible = Camera:WorldToViewportPoint(worldPosition)
 	
-	local size = self:_calculateSize()
+	local size = self:_calculateAbsoluteSize()
 	local screenPosition = Vector2.new(
-		screenPoint.X + (size.X.Offset * self._sizeOffset.X), 
-		screenPoint.Y + (size.Y.Offset * -self._sizeOffset.Y)
+		screenPoint.X + (size.X * self._sizeOffset.X), 
+		screenPoint.Y + (size.Y * -self._sizeOffset.Y)
 	)
 
 	local distance = (Camera.CFrame.Position - worldPosition).Magnitude
-	self.WithinMaxDistance = distance <= self._options.MaxDistance
+	local withinMaxDistance = distance <= self._options.MaxDistance
 
 	local screenSize = Camera.ViewportSize
 	local screenCenter = screenSize/2
@@ -197,11 +205,11 @@ function StickyBillboard.Update(self: ClassType)
 		screenSize.Y - (paddingBottom.Offset + (paddingBottom.Scale * screenSize.Y))
 	)
 
-	local onScreen = isVisible and (xBounds.Min <= screenPosition.X and screenPosition.X <= xBounds.Max)
+	self.OnScreen = isVisible and (xBounds.Min <= screenPosition.X and screenPosition.X <= xBounds.Max)
 		and (yBounds.Min <= screenPosition.Y and screenPosition.Y <= yBounds.Max)
 
-	if onScreen then
-		self.Container.Size = size 
+	if self.OnScreen then
+		self.Container.Size = UDim2.fromOffset(size.X, size.Y) 
 		self.Container.Position = UDim2.fromOffset(screenPosition.X, screenPosition.Y)
 
 		self.ScreenDirection = Vector2.new(
@@ -236,13 +244,13 @@ function StickyBillboard.Update(self: ClassType)
 		end
 	end
 
-	self.OnScreen = onScreen
-
-	self.Container.Visible = self.WithinMaxDistance
+	self.Container.Visible = withinMaxDistance
 	
 	for i, closure in ipairs(self._onUpdate) do
-		closure(onScreen, self.ScreenDirection)
+		closure(self.OnScreen, self.ScreenDirection)
 	end
+	
+	debug.profileend("StickyBillboard")
 end
 
 -- bind a function to be called every frame as the billboard updates
@@ -260,6 +268,10 @@ function StickyBillboard.WorldPosition(self: ClassType): Vector3
 		+ cframeInverse:VectorToObjectSpace(self._studsOffset)
 		+ self._extentsOffsetWorldSpace * boundingBoxSize/2
 		+ cframeInverse:VectorToObjectSpace(self._extentsOffset * boundingBoxSize/2)
+end
+
+function StickyBillboard.IsA(self: ClassType, className): boolean
+	return className == self.ClassName
 end
 
 -- returns the world position of the billboard's adornee
@@ -294,20 +306,22 @@ function StickyBillboard._adorneeBoundingBox(self: ClassType): Vector3
 end
 
 -- calculates the screen render size of the billboard in pixels if the billboard is sized with scale
-function StickyBillboard._calculateSize(self: ClassType): UDim2
+function StickyBillboard._calculateAbsoluteSize(self: ClassType): Vector2
 	if not self._sizedWithScale then
-		return self._size
+		return Vector2.new(self._size.X.Offset, self._size.Y.Offset)
 	end
 
 	local worldPosition = self:WorldPosition()
 	local screenPoint, onScreen = Camera:WorldToViewportPoint(worldPosition)
 	local depth = screenPoint.Z
+
 	local screenSize = Camera.ViewportSize
-
+	local maxAxisWidth = math.max(screenSize.X, screenSize.Y)
+	
 	local fov = math.rad(Camera.MaxAxisFieldOfView)
-	local focalLength = (screenSize.X /2 ) / math.tan(fov / 2)
+	local focalLength = (maxAxisWidth / 2) / math.tan(fov / 2)
 
-	return UDim2.fromOffset(
+	return Vector2.new(
 		self._size.X.Offset + (self._size.X.Scale * focalLength / depth),
 		self._size.Y.Offset + (self._size.Y.Scale * focalLength / depth)
 	)
