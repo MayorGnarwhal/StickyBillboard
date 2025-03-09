@@ -1,8 +1,8 @@
-debug.setmemorycategory("StickyBillboard")
-
 local StickyBillboard = {}
 StickyBillboard.__index = StickyBillboard
 StickyBillboard.ClassName = "StickyBillboard"
+
+debug.setmemorycategory(StickyBillboard.ClassName)
 
 --// Dependencies
 local GuiService = game:GetService("GuiService")
@@ -19,7 +19,8 @@ ScreenGui.IgnoreGuiInset = true
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
-export type UpdateClosure = (onScreen: boolean, screenDirection: Vector2?) -> nil
+--// Types
+export type UpdateClosure = (onScreen: boolean, screenDirection: Vector2) -> nil
 export type Adornee = Vector3 | BasePart | Model
 export type Options = {
 	MaxDistance: number?,
@@ -58,7 +59,8 @@ export type ClassType = typeof(setmetatable({} :: {
 	_offScreenSize: UDim2,
 
 	_onUpdate: {UpdateClosure},
-	_connection: RBXScriptConnection,
+	_updateConnection: RBXScriptConnection,
+	_destroyConnection: RBXScriptConnection?,
 }, StickyBillboard))
 
 
@@ -69,8 +71,10 @@ local function AssertOptionsType(options: Options, optionKey: string, typeName: 
 		`Invalid option '{optionKey}' given (expected {typeName}, got {typeof(value)})`)
 end
 
+
 --// Constructor
 function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options: Options?): ClassType
+	adornee = adornee or billboard.Adornee
 	options = options and table.clone(options) or {}
 	local sizedWithScale = (billboard.Size.X.Scale ~= 0 or billboard.Size.Y.Scale ~= 0) 
 
@@ -153,16 +157,24 @@ function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options:
 	self.Container.ZIndex = self._options.ZIndex or 1
 
 	self._onUpdate = {}
-	self._connection = RunService.PostSimulation:Connect(function(dt)
-		self:Update()
+	self._updateConnection = RunService.PostSimulation:Connect(function(dt)
+		self:_update()
 	end)
+	
+	if typeof(adornee) == "Instance" then
+		self._destroyConnection = adornee.AncestryChanged:Connect(function()
+			if adornee.Parent == nil then
+				self:Destroy()
+			end
+		end)
+	end
 
 	return self
 end
 
 
 --// Methods
-function StickyBillboard.Update(self: ClassType)
+function StickyBillboard._update(self: ClassType)
 	if not self.Enabled then
 		self.Container.Visible = false
 		return
@@ -180,10 +192,10 @@ function StickyBillboard.Update(self: ClassType)
 	)
 
 	local distance = (Camera.CFrame.Position - worldPosition).Magnitude
-	local withinMaxDistance = distance <= self._options.MaxDistance
+	local withinMaxDistance = (distance <= self._options.MaxDistance)
 
 	local screenSize = Camera.ViewportSize
-	local screenCenter = screenSize/2
+	local screenCenter = screenSize / 2
 
 	local paddingTop = self._options.PaddingTop
 	local paddingBottom = self._options.PaddingBottom
@@ -212,10 +224,7 @@ function StickyBillboard.Update(self: ClassType)
 		self.Container.Size = UDim2.fromOffset(size.X, size.Y) 
 		self.Container.Position = UDim2.fromOffset(screenPosition.X, screenPosition.Y)
 
-		self.ScreenDirection = Vector2.new(
-			screenPosition.X - screenCenter.X,
-			screenPosition.Y - screenCenter.Y
-		)
+		self.ScreenDirection = screenPosition - screenCenter
 	else
 		self.Container.Size = self._offScreenSize
 
@@ -266,8 +275,8 @@ function StickyBillboard.WorldPosition(self: ClassType): Vector3
 	return self:_adorneePosition() 
 		+ self._studsOffsetWorldSpace
 		+ cframeInverse:VectorToObjectSpace(self._studsOffset)
-		+ self._extentsOffsetWorldSpace * boundingBoxSize/2
-		+ cframeInverse:VectorToObjectSpace(self._extentsOffset * boundingBoxSize/2)
+		+ self._extentsOffsetWorldSpace * boundingBoxSize / 2
+		+ cframeInverse:VectorToObjectSpace(self._extentsOffset * boundingBoxSize / 2)
 end
 
 function StickyBillboard.IsA(self: ClassType, className): boolean
@@ -314,7 +323,7 @@ function StickyBillboard._calculateAbsoluteSize(self: ClassType): Vector2
 	local worldPosition = self:WorldPosition()
 	local screenPoint, onScreen = Camera:WorldToViewportPoint(worldPosition)
 	local depth = screenPoint.Z
-
+	
 	local screenSize = Camera.ViewportSize
 	local maxAxisWidth = math.max(screenSize.X, screenSize.Y)
 	
@@ -330,7 +339,12 @@ end
 function StickyBillboard.Destroy(self: ClassType)
 	self.Container:Destroy()
 
-	self._connection:Disconnect()
+	self._updateConnection:Disconnect()
+	if self._destroyConnection then
+		self._destroyConnection:Disconnect()
+	end
+	
+	table.clear(self)
 end
 
 --//
