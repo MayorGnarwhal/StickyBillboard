@@ -15,6 +15,7 @@ local Camera = workspace.CurrentCamera
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "StickyBillboardGui"
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
@@ -59,8 +60,7 @@ export type ClassType = typeof(setmetatable({} :: {
 	_offScreenSize: UDim2,
 
 	_onUpdate: {UpdateClosure},
-	_updateConnection: RBXScriptConnection,
-	_destroyConnection: RBXScriptConnection?,
+	_connections: {RBXScriptConnection},
 }, StickyBillboard))
 
 
@@ -69,6 +69,10 @@ local function AssertOptionsType(options: Options, optionKey: string, typeName: 
 	local value = options[optionKey]
 	assert(value == nil or typeof(value) == typeName, 
 		`Invalid option '{optionKey}' given (expected {typeName}, got {typeof(value)})`)
+end
+
+local function SafeNumberRange(min: number, max: number): NumberRange
+	return NumberRange.new(min, math.max(min, max))
 end
 
 
@@ -157,16 +161,18 @@ function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options:
 	self.Container.ZIndex = self._options.ZIndex or 1
 
 	self._onUpdate = {}
-	self._updateConnection = RunService.PostSimulation:Connect(function(dt)
+	
+	self._connections = {}
+	table.insert(self._connections, RunService.PostSimulation:Connect(function(dt)
 		self:_update()
-	end)
+	end))
 	
 	if typeof(adornee) == "Instance" then
-		self._destroyConnection = adornee.AncestryChanged:Connect(function()
+		table.insert(self._connections, adornee.AncestryChanged:Connect(function()
 			if adornee.Parent == nil then
 				self:Destroy()
 			end
-		end)
+		end))
 	end
 
 	return self
@@ -180,15 +186,16 @@ function StickyBillboard._update(self: ClassType)
 		return
 	end
 	
-	debug.profilebegin("StickyBillboard")
+	debug.profilebegin(StickyBillboard.ClassName)
 
 	local worldPosition = self:WorldPosition()
 	local screenPoint, isVisible = Camera:WorldToViewportPoint(worldPosition)
-	
-	local size = self:_calculateAbsoluteSize()
+	local depth = screenPoint.Z
+
+	local absoluteSize = self:_calculateAbsoluteSize(worldPosition)
 	local screenPosition = Vector2.new(
-		screenPoint.X + (size.X * self._sizeOffset.X), 
-		screenPoint.Y + (size.Y * -self._sizeOffset.Y)
+		screenPoint.X + (absoluteSize.X * self._sizeOffset.X), 
+		screenPoint.Y + (absoluteSize.Y * -self._sizeOffset.Y)
 	)
 
 	local distance = (Camera.CFrame.Position - worldPosition).Magnitude
@@ -208,11 +215,11 @@ function StickyBillboard._update(self: ClassType)
 		paddingLeft += UDim.new(0, guiInset.X)
 	end
 
-	local xBounds = NumberRange.new(
+	local xBounds = SafeNumberRange(
 		paddingLeft.Offset + (paddingLeft.Scale * screenSize.X),
 		screenSize.X - (paddingRight.Offset + (paddingRight.Scale * screenSize.X))
 	)
-	local yBounds = NumberRange.new(
+	local yBounds = SafeNumberRange(
 		paddingTop.Offset + (paddingTop.Scale * screenSize.Y),
 		screenSize.Y - (paddingBottom.Offset + (paddingBottom.Scale * screenSize.Y))
 	)
@@ -221,7 +228,7 @@ function StickyBillboard._update(self: ClassType)
 		and (yBounds.Min <= screenPosition.Y and screenPosition.Y <= yBounds.Max)
 
 	if self.OnScreen then
-		self.Container.Size = UDim2.fromOffset(size.X, size.Y) 
+		self.Container.Size = UDim2.fromOffset(absoluteSize.X, absoluteSize.Y) 
 		self.Container.Position = UDim2.fromOffset(screenPosition.X, screenPosition.Y)
 
 		self.ScreenDirection = screenPosition - screenCenter
@@ -259,7 +266,7 @@ function StickyBillboard._update(self: ClassType)
 		closure(self.OnScreen, self.ScreenDirection)
 	end
 	
-	debug.profileend("StickyBillboard")
+	debug.profileend(StickyBillboard.ClassName)
 end
 
 -- bind a function to be called every frame as the billboard updates
@@ -269,14 +276,23 @@ end
 
 -- calculates the world position of the billboard based on its adornee position and offset properties
 function StickyBillboard.WorldPosition(self: ClassType): Vector3
-	local boundingBoxSize = self:_adorneeBoundingBox()
-	local cframeInverse = Camera.CFrame:Inverse()
+	local position = self:_adorneePosition() + self._studsOffsetWorldSpace
+	
+	if self._studsOffset ~= Vector3.zero then
+		position += Camera.CFrame:Inverse():VectorToObjectSpace(self._studsOffset)
+	end
+	
+	if self._extentsOffsetWorldSpace ~= Vector3.zero then
+		local boundingBoxCFrame, boundingBoxSize = self:_adorneeBoundingBox()
+		position += boundingBoxCFrame:Inverse():VectorToObjectSpace(self._extentsOffsetWorldSpace * boundingBoxSize / 2)
+	end
+	
+	if self._extentsOffset ~= Vector3.zero then
+		local boundingBoxCFrame, boundingBoxSize = self:_adorneeBoundingBox(Camera.CFrame)
+		position += Camera.CFrame:Inverse():VectorToObjectSpace(self._extentsOffset * boundingBoxSize / 2)
+	end
 
-	return self:_adorneePosition() 
-		+ self._studsOffsetWorldSpace
-		+ cframeInverse:VectorToObjectSpace(self._studsOffset)
-		+ self._extentsOffsetWorldSpace * boundingBoxSize / 2
-		+ cframeInverse:VectorToObjectSpace(self._extentsOffset * boundingBoxSize / 2)
+	return position
 end
 
 function StickyBillboard.IsA(self: ClassType, className): boolean
@@ -300,27 +316,67 @@ function StickyBillboard._adorneePosition(self: ClassType): Vector3
 	return Vector3.zero
 end
 
--- calculates the size of the bounding box of the adornee. used for size calculation
-function StickyBillboard._adorneeBoundingBox(self: ClassType): Vector3
+-- calculates the bounding box of the adornee relative to the given orientation
+-- if no orientation is given, defaults to adornee's CFrame
+-- https://devforum.roblox.com/t/216581/12
+function StickyBillboard._adorneeBoundingBox(self: ClassType, orientation: CFrame?): (CFrame, Vector3)
 	if typeof(self.Adornee) == "Vector3" then
-		return Vector3.zero
-	elseif self.Adornee:IsA("BasePart") then
-		return self.Adornee.Size
-	elseif self.Adornee:IsA("Model") then
-		local cframe, size = self.Adornee:GetBoundingBox()
-		return size
+		return CFrame.identity, Vector3.zero
 	end
 	
-	return Vector3.zero
+	local isPart = self.Adornee:IsA("BasePart")
+	local descendants = self.Adornee:GetDescendants()
+	if isPart then 
+		table.insert(descendants, self.Adornee) 
+	end
+	
+	if orientation then
+		orientation = orientation.Rotation
+	elseif isPart then
+		orientation = self.Adornee.CFrame.Rotation
+	else
+		orientation = CFrame.identity
+	end
+
+	local minx, miny, minz = math.huge, math.huge, math.huge
+	local maxx, maxy, maxz = -math.huge, -math.huge, -math.huge
+
+	for i, part in pairs(descendants) do
+		if part:IsA("BasePart") then 
+			local size = part.Size
+			local sx, sy, sz = size.X, size.Y, size.Z
+
+			local x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = orientation:ToObjectSpace(part.CFrame):GetComponents()
+			local wsx = 0.5 * (math.abs(R00) * sx + math.abs(R01) * sy + math.abs(R02) * sz)
+			local wsy = 0.5 * (math.abs(R10) * sx + math.abs(R11) * sy + math.abs(R12) * sz)
+			local wsz = 0.5 * (math.abs(R20) * sx + math.abs(R21) * sy + math.abs(R22) * sz)
+
+			minx = if minx > (x - wsx) then x - wsx else minx
+			miny = if miny > (y - wsy) then y - wsy else miny
+			minz = if minz > (z - wsz) then z - wsz else minz
+
+			maxx = if maxx < (x + wsx) then x + wsx else maxx
+			maxy = if maxy < (y + wsy) then y + wsy else maxy
+			maxz = if maxz < (z + wsz) then z + wsz else maxz
+		end
+	end
+
+	local omin = Vector3.new(minx, miny, minz)
+	local omax = Vector3.new(maxx, maxy, maxz)
+	
+	local size = omax - omin
+	local cframe = orientation + orientation:PointToWorldSpace(size * 0.5)
+	
+	return cframe, size
 end
 
 -- calculates the screen render size of the billboard in pixels if the billboard is sized with scale
-function StickyBillboard._calculateAbsoluteSize(self: ClassType): Vector2
+function StickyBillboard._calculateAbsoluteSize(self: ClassType, worldPosition: Vector3): Vector2
 	if not self._sizedWithScale then
 		return Vector2.new(self._size.X.Offset, self._size.Y.Offset)
 	end
 
-	local worldPosition = self:WorldPosition()
+	worldPosition = worldPosition or self:WorldPosition()
 	local screenPoint, onScreen = Camera:WorldToViewportPoint(worldPosition)
 	local depth = screenPoint.Z
 	
@@ -337,14 +393,15 @@ function StickyBillboard._calculateAbsoluteSize(self: ClassType): Vector2
 end
 
 function StickyBillboard.Destroy(self: ClassType)
-	self.Container:Destroy()
-
-	self._updateConnection:Disconnect()
-	if self._destroyConnection then
-		self._destroyConnection:Disconnect()
+	if self.Container then
+		self.Container:Destroy()
+		self.Container = nil
 	end
-	
-	table.clear(self)
+
+	for i, connection in pairs(self._connections) do
+		connection:Disconnect()
+	end
+	table.clear(self._connections)
 end
 
 --//
