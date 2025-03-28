@@ -20,6 +20,10 @@ ScreenGui.IgnoreGuiInset = true
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
+local HiddenFolder = Instance.new("Configuration")
+HiddenFolder.Name = "_hidden"
+HiddenFolder.Parent = ScreenGui
+
 --// Types
 export type UpdateClosure = (onScreen: boolean, screenDirection: Vector2) -> nil
 export type Adornee = Vector3 | BasePart | Model
@@ -29,13 +33,14 @@ export type Options = {
 
 	OffScreenSize: UDim2?,
 	OffScreenSizeMult: number?,
-	IgnoreGuiInset: boolean?,
+	MinimumAbsoluteSize: Vector2?,
 
 	Padding: UDim2?,
 	PaddingTop: UDim?,
 	PaddingBottom: UDim2?,
 	PaddingLeft: UDim2?,
 	PaddingRight: UDim2?,
+	IgnoreGuiInset: boolean?,
 
 	AnchorPoint: Vector2?,
 	ScreenOffset: Vector2?,
@@ -80,11 +85,13 @@ end
 function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options: Options?): ClassType
 	adornee = adornee or billboard.Adornee
 	options = options and table.clone(options) or {}
+	
 	local sizedWithScale = (billboard.Size.X.Scale ~= 0 or billboard.Size.Y.Scale ~= 0) 
-
 	if sizedWithScale then
-		assert(options.OffScreenSize ~= nil, "OffScreenSize must be specified for BillboardGuis that are sized with Scale")
+		assert(options.OffScreenSize ~= nil, 
+			"OffScreenSize must be specified for BillboardGuis that are sized with Scale")
 	end
+	
 	AssertOptionsType(options, "MaxDistance", "number")
 	AssertOptionsType(options, "OffScreenSize", "UDim2")
 	AssertOptionsType(options, "OffScreenSizeMult", "number")
@@ -96,6 +103,7 @@ function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options:
 	AssertOptionsType(options, "PaddingRight", "UDim2")
 	AssertOptionsType(options, "AnchorPoint", "Vector2")
 	AssertOptionsType(options, "ScreenOffset", "Vector2")
+	AssertOptionsType(options, "MinimumAbsoluteSize", "Vector2")
 
 	local self = setmetatable({}, StickyBillboard) :: ClassType
 
@@ -132,7 +140,7 @@ function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options:
 	self._options.PaddingLeft = self._options.PaddingLeft or UDim.new()
 	self._options.PaddingRight = self._options.PaddingRight or UDim.new()
 	self._options.AnchorPoint = self._options.AnchorPoint or Vector2.new(0.5, 0.5)
-	self._options.ScreenOffset = self._options.ScreenOffset or Vector2.new(0, 0)
+	self._options.ScreenOffset = self._options.ScreenOffset or Vector2.zero
 
 	self._offScreenSize = self._options.OffScreenSize
 	if not self._options.OffScreenSize then
@@ -182,7 +190,7 @@ end
 --// Methods
 function StickyBillboard._update(self: ClassType)
 	if not self.Enabled then
-		self.Container.Visible = false
+		self.Container.Parent = HiddenFolder
 		return
 	end
 	
@@ -260,7 +268,7 @@ function StickyBillboard._update(self: ClassType)
 		end
 	end
 
-	self.Container.Visible = withinMaxDistance
+	self.Container.Parent = withinMaxDistance and ScreenGui or HiddenFolder
 	
 	for i, closure in ipairs(self._onUpdate) do
 		closure(self.OnScreen, self.ScreenDirection)
@@ -372,24 +380,35 @@ end
 
 -- calculates the screen render size of the billboard in pixels if the billboard is sized with scale
 function StickyBillboard._calculateAbsoluteSize(self: ClassType, worldPosition: Vector3): Vector2
-	if not self._sizedWithScale then
-		return Vector2.new(self._size.X.Offset, self._size.Y.Offset)
+	local sizeX, sizeY
+	
+	if self._sizedWithScale then
+		worldPosition = worldPosition or self:WorldPosition()
+		local screenPoint, onScreen = Camera:WorldToViewportPoint(worldPosition)
+		local depth = screenPoint.Z
+		
+		local screenSize = Camera.ViewportSize
+		local maxAxisWidth = math.max(screenSize.X, screenSize.Y)
+		
+		local fov = math.rad(Camera.MaxAxisFieldOfView)
+		local focalLength = (maxAxisWidth / 2) / math.tan(fov / 2)
+		
+		sizeX = self._size.X.Offset + (self._size.X.Scale * focalLength / depth)
+		sizeY = self._size.Y.Offset + (self._size.Y.Scale * focalLength / depth)
+	else
+		sizeX = self._size.X.Offset
+		sizeY = self._size.Y.Offset
 	end
-
-	worldPosition = worldPosition or self:WorldPosition()
-	local screenPoint, onScreen = Camera:WorldToViewportPoint(worldPosition)
-	local depth = screenPoint.Z
 	
-	local screenSize = Camera.ViewportSize
-	local maxAxisWidth = math.max(screenSize.X, screenSize.Y)
-	
-	local fov = math.rad(Camera.MaxAxisFieldOfView)
-	local focalLength = (maxAxisWidth / 2) / math.tan(fov / 2)
-
-	return Vector2.new(
-		self._size.X.Offset + (self._size.X.Scale * focalLength / depth),
-		self._size.Y.Offset + (self._size.Y.Scale * focalLength / depth)
-	)
+	local minSize = self._options.MinimumAbsoluteSize
+	if minSize then
+		return Vector2.new(
+			math.max(sizeX, minSize.X),
+			math.max(sizeY, minSize.Y)
+		)
+	else
+		return Vector2.new(sizeX, sizeY)
+	end
 end
 
 function StickyBillboard.Destroy(self: ClassType)
