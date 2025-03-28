@@ -1,16 +1,16 @@
 # StickyBillboard
 Converts any BillboardGui into a StickyBillboard, which will stick to the edges of the screen when the Billboard's adornee is off screen. 
 
-StickyBillboard works by copying the contents of a BillboardGui into a Frame in PlayerGui, and rendering its position every frame. When the BillboardGui's adornee position is off screen, the StickyBillboard's frame is clamped to the edges of the screen. 
-
-All properties of the BillboardGui are passed to the StickyBillboard unless overwritten by the given [options](#stickybillboard-options), with the exception of the properties listed in the [limitations](#limitations).
+StickyBillboard works by copying the contents of a BillboardGui into a Frame in PlayerGui, and rendering its position every frame. When the BillboardGui's adornee position is off screen, the StickyBillboard's frame is clamped to the edges of the screen, allowing for an always visible location indicator.
 
 ## How to use
 ```luau
-local billboardGui = workspace.Part.BillboardGui
+local billboardGui = workspace.Part.BillboardGui :: BillboardGui
 local sticky = StickyBillboard.new(billboardGui, billboardGui.Parent)
 billboardGui:Destroy()
 ```
+
+See [Constructors](#constructors) for more information on how StickyBillboard is created.
 
 
 ### Creating a location marker
@@ -39,7 +39,8 @@ https://github.com/user-attachments/assets/1e11f2fa-e595-46a4-a20f-5b0884221a38
 
 ## Constructors
 ### `new`
-Creates a new StickyBillboard object
+Creates a new StickyBillboard object. All properties of the BillboardGui are passed to the StickyBillboard unless overwritten by the given [options](#stickybillboard-options), with the exception of the properties listed in the [limitations](#limitations).
+
 ### Parameters
 |     |     |     |
 | :-- | :-- | :-- |
@@ -47,11 +48,17 @@ Creates a new StickyBillboard object
 | **adornee** | *BasePart \| Model \| Vector3?* | Defaults to the adornee of the given billboard |
 | **options** | *[Options](#stickybillboard-options)?* | Dictonary of parameters than can be used to modify the StickyBillboard's behavior |
 
+Note that the original BillboardGui is not affected when creating a new StickyBillboard object. If you want to replace a BillboardGui that is already parented in the workspace, you should delete the BillboardGui template after creating the StickyBillboard, and BillboardGuis **do not** need to be cloned when passed into the constructor.
+
+When a StickyBillboard is created, the contents of the template BillboardGui are cloned into a Frame in PlayerGui, which you can access and modify through the `Containter` [property](#stickybillboard-properties).
+
 <br>
 
 ## Methods
 ### `BindToUpdate`
-Binds a function that will be called every frame as the StickyBillboard updates. Passes two arguments `onScreen` and `screenDirection` indicating basic state of the billboard, which can also be read directly through the [StickyBillboard properties](#stickybillboard-properties)
+Binds a function that will be called every frame as the StickyBillboard updates. 
+
+Passes two arguments `onScreen` and `screenDirection` indicating basic state of the billboard, which can also be read directly through the [StickyBillboard properties](#stickybillboard-properties). These arguments can be used to update the contents of the StickyBillboard, such as an arrow pointing towards the world location as seen in the [example location marker code](#creating-a-location-marker).
 ### Parameters
 |     |     |
 | :-- | :-- |
@@ -69,7 +76,7 @@ end)
 Calculates and returns a `Vector3` of the world position of the StickyBillboard based on its adornee's position and offset properties
 
 ### `Destroy`
-Destroys the StickyBillboard and all created instances and connections. If the StickyBillboard's adornee is an instance, `Destroy` is automatically called when the adornee is destroyed.
+Destroys the StickyBillboard and all created instances and connections. If the StickyBillboard's adornee is an instance, `Destroy` is automatically called when the adornee is destroyed or parented to `nil`.
 
 <br>
 
@@ -81,13 +88,14 @@ When creating a StickyBillboard object, a number of options can be given to defi
 | **ZIndex** | *number* | Determines the order the StickyBillboards renders relative to other StickyBillboard objects |
 | **OffScreenSize** | *UDim2* | The size of the StickyBillboard when it is clamped to the edge of the screen. Defaults to the BillboardGui's `Size` property. **Must be defined if the size uses scale** |
 | **OffScreenSizeMult** | *number* | Calculates OffScreenSize based on the billboard's size and the multiplier. Has no effect if `OffScreenSize` is defined |
+| **MinimumAbsoluteSize** | *Vector2* | Sets minimum bounds for the AbsoluteSize. Only has effect if sized with scale. Maintains aspect ratio when resized, so minimum size may not be reached on all axes |
 | **Padding** | *UDim2* | Defines the distance from the edge of the screen the StickyBillboard is bound to |
 | **PaddingTop** | *UDim* | Padding for the top of the screen. Stacks with `Padding` |
 | **PaddingBottom** | *UDim* | Padding for the bottom of the screen. Stacks with `Padding` |
 | **PaddingLeft** | *UDim* | Padding for the left of the screen. Stacks with `Padding` |
 | **PaddingRight** | *UDim* | Padding for the right of the screen. Stacks with `Padding` |
 | **IgnoreGuiInset** | *boolean* | Adds padding to the top and left of the screen as neccessary based on the device's GuiInset |
-| **AnchorPoint** | *Vector2* | Defines the center of the StickyBillboard. Defaults to `(0.5, 0.5)`. |
+| **AnchorPoint** | *Vector2* | Defines the center of the StickyBillboard. Defaults to `(0.5, 0.5)` |
 | **ScreenOffset** | *Vector2* | Defines the screen offset in pixels of the rendered billboard |
 
 <br>
@@ -97,7 +105,7 @@ There are a few properties that can be used to read and/or change the state of t
 | Property | Type | Description |
 | :-- | :-- | :-- |
 | **Container** | *Frame* | (Readonly) The Frame Instance in which the billboard is rendered. Has the same hierarchy as the given BillboardGui |
-| **Enabled** | *boolean* | Determines if the StickyBillboard should be rendered or not |
+| **Enabled** | *boolean* | Determines if the StickyBillboard should be rendered or not. Functions given to [BindToUpdate](#bindtoupdate) **will not** be called while disabled. You can also set `Container.Visible` if you want to hide the billboard but still render in the background |
 | **OnScreen** | *boolean* | (Readonly) Denotes if the StickyBillboard is on the screen or if it is clamped to the edge of the screen |
 | **ScreenDirection** | *Vector2* | (Readonly) Denotes a direction vector from the center of the screen. Is not a unit vector |
 
@@ -112,4 +120,4 @@ There are a few properties that can be used to read and/or change the state of t
   - `ResetOnSpawn` (default = `false)`
   - `ZIndexBehavior` (default = `Sibling`)
 - If given BillboardGui is sized with Scale, `Options.OffScreenSize` must be defined
-- Billboards with a non-zero `SizeOffset` will clamp off screen based on the adornee position, not where the StickyBillboard renders on the screen
+- Billboards with a non-zero `SizeOffset` will clamp off screen based on the adornee position, not where the StickyBillboard renders on the screen. For most use cases, it is recommended to use the `AnchorPoint` option instead
