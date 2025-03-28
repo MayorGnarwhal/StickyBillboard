@@ -400,15 +400,19 @@ function StickyBillboard._calculateAbsoluteSize(self: ClassType, worldPosition: 
 		sizeY = self._size.Y.Offset
 	end
 	
+	local absoluteSize = Vector2.new(sizeX, sizeY)
 	local minSize = self._options.MinimumAbsoluteSize
-	if minSize then
-		return Vector2.new(
-			math.max(sizeX, minSize.X),
-			math.max(sizeY, minSize.Y)
-		)
-	else
-		return Vector2.new(sizeX, sizeY)
+	
+	if minSize then -- clamp while maintaining aspect ratio
+		if absoluteSize.X < minSize.X then
+			absoluteSize *= (minSize.X / absoluteSize.X)
+		end
+		if absoluteSize.Y < minSize.Y then
+			absoluteSize *= (minSize.Y / absoluteSize.Y)
+		end
 	end
+	
+	return absoluteSize
 end
 
 function StickyBillboard.Destroy(self: ClassType)
