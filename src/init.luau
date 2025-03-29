@@ -25,7 +25,7 @@ HiddenFolder.Name = "_hidden"
 HiddenFolder.Parent = ScreenGui
 
 --// Types
-export type UpdateClosure = (onScreen: boolean, screenDirection: Vector2) -> nil
+export type UpdateClosure = (dt: number, onScreen: boolean, screenDirection: Vector2) -> nil
 export type Adornee = Vector3 | BasePart | Model
 export type Options = {
 	MaxDistance: number?,
@@ -172,7 +172,7 @@ function StickyBillboard.new(billboard: BillboardGui, adornee: Adornee, options:
 	
 	self._connections = {}
 	table.insert(self._connections, RunService.PostSimulation:Connect(function(dt)
-		self:_update()
+		self:_update(dt)
 	end))
 	
 	if typeof(adornee) == "Instance" then
@@ -188,7 +188,7 @@ end
 
 
 --// Methods
-function StickyBillboard._update(self: ClassType)
+function StickyBillboard._update(self: ClassType, dt: number)
 	if not self.Enabled then
 		self.Container.Parent = HiddenFolder
 		return
@@ -267,11 +267,11 @@ function StickyBillboard._update(self: ClassType)
 			)
 		end
 	end
-
+	
 	self.Container.Parent = withinMaxDistance and ScreenGui or HiddenFolder
 	
 	for i, closure in ipairs(self._onUpdate) do
-		closure(self.OnScreen, self.ScreenDirection)
+		closure(dt, self.OnScreen, self.ScreenDirection)
 	end
 	
 	debug.profileend(StickyBillboard.ClassName)
@@ -304,7 +304,7 @@ function StickyBillboard.WorldPosition(self: ClassType): Vector3
 end
 
 function StickyBillboard.IsA(self: ClassType, className): boolean
-	return className == self.ClassName
+	return className == StickyBillboard.ClassName
 end
 
 -- returns the world position of the billboard's adornee
