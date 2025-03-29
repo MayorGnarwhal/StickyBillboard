@@ -21,7 +21,7 @@ local sticky = StickyBillboard.new(billboard, adornee, {
 	Padding = UDim2.fromOffset(20, 20),
 })
 
-sticky:BindToUpdate(function(onScreen, direction)
+sticky:BindToUpdate(function(dt, onScreen, direction)
 	if onScreen then
 		sticky.Container.Arrow.Visible = false
 	else
@@ -130,3 +130,6 @@ There are a few properties that can be used to read and/or change the state of t
   - `ZIndexBehavior` (default = `Sibling`)
 - If given BillboardGui is sized with Scale, `Options.OffScreenSize` must be defined
 - Billboards with a non-zero `SizeOffset` will clamp off screen based on the adornee position, not where the StickyBillboard renders on the screen. For most use cases, it is recommended to use the `AnchorPoint` option instead
+
+## Installation
+Get StickyBillboard [on Roblox](https://create.roblox.com/store/asset/118203280367884) or from the [latest GitHub release](https://github.com/MayorGnarwhal/StickyBillboard/releases)
