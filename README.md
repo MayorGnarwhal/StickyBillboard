@@ -37,6 +37,16 @@ https://github.com/user-attachments/assets/1e11f2fa-e595-46a4-a20f-5b0884221a38
 
 <br>
 
+## Seemless Integration
+To make the transition from native BillboardGuis to StickyBillboards as seemless as possible, the rendering of StickyBillboards behave exactly like BillboardGuis. This includes the persistence of all offset properties (`StudsOffset`, `StudsOffsetWorldSpace`, `ExtentsOffset`, and `ExtentsOffsetWorldSpace`).
+
+Below is a demonstration of each of the offset properties. The red circles are StickyBillboards, and the blue oulines are the BillboardGui templates.
+
+https://github.com/user-attachments/assets/f46ec3ec-0ff2-4978-a5da-cfb7f8a9293c
+
+
+<br>
+
 ## Constructors
 ### `new`
 Creates a new StickyBillboard object. All properties of the BillboardGui are passed to the StickyBillboard unless overwritten by the given [options](#stickybillboard-options), with the exception of the properties listed in the [limitations](#limitations).
@@ -58,16 +68,15 @@ When a StickyBillboard is created, the contents of the template BillboardGui are
 ### `BindToUpdate`
 Binds a function that will be called every frame as the StickyBillboard updates. 
 
-Passes two arguments `onScreen` and `screenDirection` indicating basic state of the billboard, which can also be read directly through the [StickyBillboard properties](#stickybillboard-properties). These arguments can be used to update the contents of the StickyBillboard, such as an arrow pointing towards the world location as seen in the [example location marker code](#creating-a-location-marker).
+Passes three arguments, `dt`, `onScreen`, and `screenDirection`. `dt` is the time in seconds since the previous update. `onScreen` and `screenDirections` indicate basic state of the billboard, which can also be read directly through the [StickyBillboard properties](#stickybillboard-properties). These arguments can be used to update the contents of the StickyBillboard, such as an arrow pointing towards the world location as seen in the [example location marker code](#creating-a-location-marker).
 ### Parameters
 |     |     |
 | :-- | :-- |
-| **closure** | *(onScreen: boolean, screenDirection: Vector2) -> nil* |
-
+| **closure** | *(dt: number, onScreen: boolean, screenDirection: Vector2) -> nil* |
 ```luau
 local sticky = StickyBillboard.new(billboardGui, adornee)
 
-sticky:BindToUpdate(function(onScreen, screenDirection)
+sticky:BindToUpdate(function(dt, onScreen, screenDirection)
 	print("StickyBillboard is on screen:", onScreen)
 end)
 ```
