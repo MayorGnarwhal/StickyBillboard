@@ -314,11 +314,8 @@ function StickyBillboard._adorneePosition(self: ClassType): Vector3
 	elseif self.Adornee:IsA("BasePart") then
 		return self.Adornee.Position
 	elseif self.Adornee:IsA("Model") then
-		if self.Adornee.PrimaryPart then
-			return self.Adornee.PrimaryPart.Position
-		else
-			return self.Adornee:GetPivot().Position
-		end
+		local cframe, size = self.Adornee:GetBoundingBox()
+		return cframe.Position
 	end
 
 	return Vector3.zero
@@ -343,7 +340,7 @@ function StickyBillboard._adorneeBoundingBox(self: ClassType, orientation: CFram
 	elseif isPart then
 		orientation = self.Adornee.CFrame.Rotation
 	else
-		orientation = CFrame.identity
+		orientation = self.Adornee:GetPivot().Rotation
 	end
 
 	local minx, miny, minz = math.huge, math.huge, math.huge
