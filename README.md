@@ -3,6 +3,17 @@ Converts any BillboardGui into a StickyBillboard, which will stick to the edges 
 
 StickyBillboard works by copying the contents of a BillboardGui into a Frame in PlayerGui, and rendering its position every frame. When the BillboardGui's adornee position is off screen, the StickyBillboard's frame is clamped to the edges of the screen, allowing for an always visible location indicator.
 
+## Table of Contents
+- [How to use](#how-to-use)
+	- [Creating a location marker](#creating-a-location-marker)
+ 	- [Seemless Integration](#seemless-integration)
+- [Constructors](#constructors)
+- [Methods](#methods)
+- [Constructor Options](#constructor-options)
+- [Properties](#properties)
+- [Limitations](#limitations)
+- [Installation](#installation)
+
 ## How to use
 ```luau
 local billboardGui = workspace.Part.BillboardGui :: BillboardGui
@@ -16,7 +27,10 @@ See [Constructors](#constructors) for more information on how StickyBillboard is
 ### Creating a location marker
 Sample code utilizing all features of StickyBillboard. Creates a billboard that has an arrow pointing towards the world position when off screen.
 ```luau
-local sticky = StickyBillboard.new(billboard, adornee, {
+local billboardTemplate = ReplicatedStorage.Assets.BillboardGui
+local adornee = workspace.Baseplate
+
+local sticky = StickyBillboard.new(billboardTemplate, adornee, {
 	OffScreenSizeMult = 0.75,
 	Padding = UDim2.fromOffset(20, 20),
 })
@@ -35,9 +49,7 @@ end)
 
 https://github.com/user-attachments/assets/1e11f2fa-e595-46a4-a20f-5b0884221a38
 
-<br>
-
-## Seemless Integration
+### Seemless Integration
 To make the transition from native BillboardGuis to StickyBillboards as seemless as possible, the rendering of StickyBillboards behave exactly like BillboardGuis. This includes the persistence of all offset properties (`StudsOffset`, `StudsOffsetWorldSpace`, `ExtentsOffset`, and `ExtentsOffsetWorldSpace`).
 
 Below is a demonstration of each of the offset properties. The red circles are StickyBillboards, and the blue oulines are the BillboardGui templates.
@@ -49,18 +61,18 @@ https://github.com/user-attachments/assets/f46ec3ec-0ff2-4978-a5da-cfb7f8a9293c
 
 ## Constructors
 ### `new`
-Creates a new StickyBillboard object. All properties of the BillboardGui are passed to the StickyBillboard unless overwritten by the given [options](#stickybillboard-options), with the exception of the properties listed in the [limitations](#limitations).
+Creates a new StickyBillboard object. All properties of the BillboardGui are passed to the StickyBillboard unless overwritten by the given [options](#constructor-options), with the exception of the properties listed in the [limitations](#limitations).
 
 ### Parameters
 |     |     |     |
 | :-- | :-- | :-- |
 | **billboard** | *BillboardGui* | Template BillboardGui to be converted. The original billboard will not be modified |
 | **adornee** | *BasePart \| Model \| Vector3?* | Defaults to the adornee of the given billboard |
-| **options** | *[Options](#stickybillboard-options)?* | Dictonary of parameters than can be used to modify the StickyBillboard's behavior |
+| **options** | *[Options](#constructor-options)?* | Dictonary of parameters than can be used to modify the StickyBillboard's behavior |
 
 Note that the original BillboardGui is not affected when creating a new StickyBillboard object. If you want to replace a BillboardGui that is already parented in the workspace, you should delete the BillboardGui template after creating the StickyBillboard, and BillboardGuis **do not** need to be cloned when passed into the constructor.
 
-When a StickyBillboard is created, the contents of the template BillboardGui are cloned into a Frame in PlayerGui, which you can access and modify through the `Containter` [property](#stickybillboard-properties).
+When a StickyBillboard is created, the contents of the template BillboardGui are cloned into a Frame in PlayerGui, which you can access and modify through the `Containter` [property](#properties).
 
 <br>
 
@@ -68,7 +80,7 @@ When a StickyBillboard is created, the contents of the template BillboardGui are
 ### `BindToUpdate`
 Binds a function that will be called every frame as the StickyBillboard updates. 
 
-Passes three arguments, `dt`, `onScreen`, and `screenDirection`. `dt` is the time in seconds since the previous update. `onScreen` and `screenDirections` indicate basic state of the billboard, which can also be read directly through the [StickyBillboard properties](#stickybillboard-properties). These arguments can be used to update the contents of the StickyBillboard, such as an arrow pointing towards the world location as seen in the [example location marker code](#creating-a-location-marker).
+Passes three arguments, `dt`, `onScreen`, and `screenDirection`. `dt` is the time in seconds since the previous update. `onScreen` and `screenDirections` indicate basic state of the billboard, which can also be read directly through the [StickyBillboard properties](#properties). These arguments can be used to update the contents of the StickyBillboard, such as an arrow pointing towards the world location as seen in the [example location marker code](#creating-a-location-marker).
 ### Parameters
 |     |     |
 | :-- | :-- |
@@ -84,12 +96,23 @@ end)
 ### `WorldPosition`
 Calculates and returns a `Vector3` of the world position of the StickyBillboard based on its adornee's position and offset properties
 
+```luau
+local billboardTemplate = ReplicatedStorage.Assets.BillboardGui
+local adornee = workspace.Baseplate
+
+adornee.Position = Vector3.new(0, 5, 0)
+billboardTemplate.StudsOffsetWorldSpace = Vector3.new(0, 5, 0)
+
+local sticky = StickyBillboard.new(billboardTemplate, adornee)
+print(sticky:WorldPosition()) -- Vector3.new(0, 10, 0)
+```
+
 ### `Destroy`
 Destroys the StickyBillboard and all created instances and connections. If the StickyBillboard's adornee is an instance, `Destroy` is automatically called when the adornee is destroyed or parented to `nil`.
 
 <br>
 
-## StickyBillboard Options
+## Constructor Options
 When creating a StickyBillboard object, a number of options can be given to define its behavior.
 | Property | Type | Description |
 | :-- | :-- | :-- |
@@ -109,7 +132,7 @@ When creating a StickyBillboard object, a number of options can be given to defi
 
 <br>
 
-## StickyBillboard Properties
+## Properties
 There are a few properties that can be used to read and/or change the state of the StickyBillboard
 | Property | Type | Description |
 | :-- | :-- | :-- |
@@ -128,7 +151,8 @@ There are a few properties that can be used to read and/or change the state of t
   - `PlayerToHideFrom` (default = `nil`)
   - `ResetOnSpawn` (default = `false)`
   - `ZIndexBehavior` (default = `Sibling`)
-- If given BillboardGui is sized with Scale, `Options.OffScreenSize` must be defined
+- The size of the StickyBillboard Container cannot be changed
+- If template BillboardGui is sized with Scale, `Options.OffScreenSize` must be defined
 - Billboards with a non-zero `SizeOffset` will clamp off screen based on the adornee position, not where the StickyBillboard renders on the screen. For most use cases, it is recommended to use the `AnchorPoint` option instead
 
 ## Installation
