@@ -79,7 +79,10 @@ local function AssertOptionsType(options: Options, optionKey: string, typeName: 
 end
 
 local function SafeNumberRange(min: number, max: number): NumberRange
-	return NumberRange.new(min, math.max(min, max))
+	return NumberRange.new(
+		min, 
+		if min > max then min else max
+	)
 end
 
 
@@ -399,7 +402,7 @@ function StickyBillboard._calculateAbsoluteSize(self: ClassType, worldPosition: 
 		local depth = screenPoint.Z
 
 		local screenSize = Camera.ViewportSize
-		local maxAxisWidth = math.max(screenSize.X, screenSize.Y)
+		local maxAxisWidth = if screenSize.X > screenSize.Y then screenSize.X else screenSize.Y
 
 		local fov = math.rad(Camera.MaxAxisFieldOfView)
 		local focalLength = (maxAxisWidth * 0.5) / math.tan(fov * 0.5)
