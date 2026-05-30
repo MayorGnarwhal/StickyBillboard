@@ -218,7 +218,7 @@ function StickyBillboard._update(self: ClassType, dt: number)
 	local screenPoint, isVisible = Camera:WorldToViewportPoint(worldPosition)
 	local depth = screenPoint.Z
 
-	local absoluteSize = self:_calculateAbsoluteSize(worldPosition)
+	local absoluteSize = self:AbsoluteSize(worldPosition)
 	local screenPosition = Vector2.new(
 		screenPoint.X + (absoluteSize.X * self._sizeOffset.X), 
 		screenPoint.Y + (absoluteSize.Y * -self._sizeOffset.Y)
@@ -300,33 +300,27 @@ end
 
 -- @return Vector3 - The world position the billboard should render
 function StickyBillboard.WorldPosition(self: ClassType): Vector3
-	local position = self:_adorneePosition() + self._studsOffsetWorldSpace
+	local position = self:AdorneePosition() + self._studsOffsetWorldSpace
 
 	if self._studsOffset ~= Vector3.zero then
 		position += Camera.CFrame:Inverse():VectorToObjectSpace(self._studsOffset)
 	end
 
 	if self._extentsOffsetWorldSpace ~= Vector3.zero then
-		local boundingBoxCFrame, boundingBoxSize = self:_adorneeBoundingBox()
+		local boundingBoxCFrame, boundingBoxSize = self:GetAdorneeBoundingBox()
 		position += boundingBoxCFrame:Inverse():VectorToObjectSpace(self._extentsOffsetWorldSpace * boundingBoxSize * 0.5)
 	end
 
 	if self._extentsOffset ~= Vector3.zero then
-		local boundingBoxCFrame, boundingBoxSize = self:_adorneeBoundingBox(Camera.CFrame)
+		local boundingBoxCFrame, boundingBoxSize = self:GetAdorneeBoundingBox(Camera.CFrame)
 		position += Camera.CFrame:Inverse():VectorToObjectSpace(self._extentsOffset * boundingBoxSize * 0.5)
 	end
 
 	return position
 end
 
--- Persist Instance :IsA() method to differentiate StickyBillboards and BillboardGui instances
--- @return bool
-function StickyBillboard.IsA(self: ClassType, className: string): boolean
-	return className == StickyBillboard.ClassName
-end
-
 -- @return Vector3 - The current world position of the billboard's adornee
-function StickyBillboard._adorneePosition(self: ClassType): Vector3
+function StickyBillboard.AdorneePosition(self: ClassType): Vector3
 	if self._typeofAdornee == "Vector3" then
 		return self.Adornee
 	elseif self.Adornee:IsA("BasePart") then
@@ -343,7 +337,7 @@ end
 -- https://devforum.roblox.com/t/216581/12
 -- @param orientation - The orientation to calculate the bounding box relative to. Defaults to the adornee's CFrame
 -- @return (CFrame, Vector) - The (Orientation, Size) tuple of the bounding box
-function StickyBillboard._adorneeBoundingBox(self: ClassType, orientation: CFrame?): (CFrame, Vector3)
+function StickyBillboard.GetAdorneeBoundingBox(self: ClassType, orientation: CFrame?): (CFrame, Vector3)
 	if self._typeofAdornee == "Vector3" then
 		return CFrame.new(self.Adornee), Vector3.zero
 	end
@@ -353,7 +347,7 @@ function StickyBillboard._adorneeBoundingBox(self: ClassType, orientation: CFram
 	if isPart then 
 		table.insert(descendants, self.Adornee) 
 	end
-	
+
 	orientation = if orientation then orientation.Rotation
 		elseif isPart then self.Adornee.CFrame.Rotation
 		else self.Adornee:GetPivot().Rotation
@@ -393,7 +387,7 @@ end
 -- Calculates the absolute size of the billboard for a given position relative to the current camera cframe
 -- @param worldPosition
 -- @return Vector2 - The absolute size in pixels the billboard should render at
-function StickyBillboard._calculateAbsoluteSize(self: ClassType, worldPosition: Vector3?): Vector2
+function StickyBillboard.AbsoluteSize(self: ClassType, worldPosition: Vector3?): Vector2
 	local sizeX, sizeY
 
 	if self._sizedWithScale then
@@ -427,6 +421,12 @@ function StickyBillboard._calculateAbsoluteSize(self: ClassType, worldPosition: 
 	end
 
 	return absoluteSize
+end
+
+-- Persist Instance :IsA() method to differentiate StickyBillboards and BillboardGui instances
+-- @return bool
+function StickyBillboard.IsA(self: ClassType, className: string): boolean
+	return className == StickyBillboard.ClassName
 end
 
 -- Destroy the StickyBillboard instance and clean up all connections and instances
