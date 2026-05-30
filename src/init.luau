@@ -214,11 +214,11 @@ function StickyBillboard._update(self: ClassType, dt: number)
 		return
 	end
 
-	local worldPosition = self:WorldPosition()
+	local worldPosition = self:CalculateWorldPosition()
 	local screenPoint, isVisible = Camera:WorldToViewportPoint(worldPosition)
 	local depth = screenPoint.Z
 
-	local absoluteSize = self:AbsoluteSize(worldPosition)
+	local absoluteSize = self:CalculateAbsoluteSize(worldPosition)
 	local screenPosition = Vector2.new(
 		screenPoint.X + (absoluteSize.X * self._sizeOffset.X), 
 		screenPoint.Y + (absoluteSize.Y * -self._sizeOffset.Y)
@@ -299,8 +299,8 @@ function StickyBillboard.BindToUpdate(self: ClassType, closure: UpdateClosure)
 end
 
 -- @return Vector3 - The world position the billboard should render
-function StickyBillboard.WorldPosition(self: ClassType): Vector3
-	local position = self:AdorneePosition() + self._studsOffsetWorldSpace
+function StickyBillboard.CalculateWorldPosition(self: ClassType): Vector3
+	local position = self:GetAdorneePosition() + self._studsOffsetWorldSpace
 
 	if self._studsOffset ~= Vector3.zero then
 		position += Camera.CFrame:Inverse():VectorToObjectSpace(self._studsOffset)
@@ -318,9 +318,10 @@ function StickyBillboard.WorldPosition(self: ClassType): Vector3
 
 	return position
 end
+StickyBillboard.WorldPosition = StickyBillboard.CalculateWorldPosition
 
 -- @return Vector3 - The current world position of the billboard's adornee
-function StickyBillboard.AdorneePosition(self: ClassType): Vector3
+function StickyBillboard.GetAdorneePosition(self: ClassType): Vector3
 	if self._typeofAdornee == "Vector3" then
 		return self.Adornee
 	elseif self.Adornee:IsA("BasePart") then
@@ -387,11 +388,11 @@ end
 -- Calculates the absolute size of the billboard for a given position relative to the current camera cframe
 -- @param worldPosition
 -- @return Vector2 - The absolute size in pixels the billboard should render at
-function StickyBillboard.AbsoluteSize(self: ClassType, worldPosition: Vector3?): Vector2
+function StickyBillboard.CalculateAbsoluteSize(self: ClassType, worldPosition: Vector3?): Vector2
 	local sizeX, sizeY
 
 	if self._sizedWithScale then
-		worldPosition = worldPosition or self:WorldPosition()
+		worldPosition = worldPosition or self:CalculateWorldPosition()
 		local screenPoint, onScreen = Camera:WorldToViewportPoint(worldPosition)
 		local depth = screenPoint.Z
 
