@@ -214,11 +214,11 @@ function StickyBillboard._update(self: ClassType, dt: number)
 		return
 	end
 
-	local worldPosition = self:CalculateWorldPosition()
+	local worldPosition = self:GetWorldPosition()
 	local screenPoint, isVisible = Camera:WorldToViewportPoint(worldPosition)
 	local depth = screenPoint.Z
 
-	local absoluteSize = self:CalculateAbsoluteSize(worldPosition)
+	local absoluteSize = self:GetAbsoluteSize(worldPosition)
 	local screenPosition = Vector2.new(
 		screenPoint.X + (absoluteSize.X * self._sizeOffset.X), 
 		screenPoint.Y + (absoluteSize.Y * -self._sizeOffset.Y)
@@ -299,7 +299,7 @@ function StickyBillboard.BindToUpdate(self: ClassType, closure: UpdateClosure)
 end
 
 -- @return Vector3 - The world position the billboard should render
-function StickyBillboard.CalculateWorldPosition(self: ClassType): Vector3
+function StickyBillboard.GetWorldPosition(self: ClassType): Vector3
 	local position = self:GetAdorneePosition() + self._studsOffsetWorldSpace
 
 	if self._studsOffset ~= Vector3.zero then
@@ -318,7 +318,8 @@ function StickyBillboard.CalculateWorldPosition(self: ClassType): Vector3
 
 	return position
 end
-StickyBillboard.WorldPosition = StickyBillboard.CalculateWorldPosition
+-- @deprecated Alias
+StickyBillboard.WorldPosition = StickyBillboard.GetWorldPosition
 
 -- @return Vector3 - The current world position of the billboard's adornee
 function StickyBillboard.GetAdorneePosition(self: ClassType): Vector3
@@ -388,11 +389,11 @@ end
 -- Calculates the absolute size of the billboard for a given position relative to the current camera cframe
 -- @param worldPosition
 -- @return Vector2 - The absolute size in pixels the billboard should render at
-function StickyBillboard.CalculateAbsoluteSize(self: ClassType, worldPosition: Vector3?): Vector2
+function StickyBillboard.GetAbsoluteSize(self: ClassType, worldPosition: Vector3?): Vector2
 	local sizeX, sizeY
 
 	if self._sizedWithScale then
-		worldPosition = worldPosition or self:CalculateWorldPosition()
+		worldPosition = worldPosition or self:GetWorldPosition()
 		local screenPoint, onScreen = Camera:WorldToViewportPoint(worldPosition)
 		local depth = screenPoint.Z
 
