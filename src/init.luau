@@ -210,7 +210,7 @@ function StickyBillboard._update(self: ClassType, dt: number)
 	local withinMaxDistance = (distance <= self._options.MaxDistance)
 
 	local screenSize = Camera.ViewportSize
-	local screenCenter = screenSize / 2
+	local screenCenter = screenSize * 0.5
 
 	local paddingTop = self._options.PaddingTop
 	local paddingBottom = self._options.PaddingBottom
@@ -290,12 +290,12 @@ function StickyBillboard.WorldPosition(self: ClassType): Vector3
 
 	if self._extentsOffsetWorldSpace ~= Vector3.zero then
 		local boundingBoxCFrame, boundingBoxSize = self:_adorneeBoundingBox()
-		position += boundingBoxCFrame:Inverse():VectorToObjectSpace(self._extentsOffsetWorldSpace * boundingBoxSize / 2)
+		position += boundingBoxCFrame:Inverse():VectorToObjectSpace(self._extentsOffsetWorldSpace * boundingBoxSize * 0.5)
 	end
 
 	if self._extentsOffset ~= Vector3.zero then
 		local boundingBoxCFrame, boundingBoxSize = self:_adorneeBoundingBox(Camera.CFrame)
-		position += Camera.CFrame:Inverse():VectorToObjectSpace(self._extentsOffset * boundingBoxSize / 2)
+		position += Camera.CFrame:Inverse():VectorToObjectSpace(self._extentsOffset * boundingBoxSize * 0.5)
 	end
 
 	return position
@@ -386,7 +386,7 @@ function StickyBillboard._calculateAbsoluteSize(self: ClassType, worldPosition: 
 		local maxAxisWidth = math.max(screenSize.X, screenSize.Y)
 
 		local fov = math.rad(Camera.MaxAxisFieldOfView)
-		local focalLength = (maxAxisWidth / 2) / math.tan(fov / 2)
+		local focalLength = (maxAxisWidth * 0.5) / math.tan(fov * 0.5)
 
 		sizeX = self._size.X.Offset + (self._size.X.Scale * focalLength / depth)
 		sizeY = self._size.Y.Offset + (self._size.Y.Scale * focalLength / depth)
