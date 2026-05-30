@@ -88,13 +88,51 @@ Passes three arguments, `dt`, `onScreen`, and `screenDirection`. `dt` is the tim
 ```luau
 local sticky = StickyBillboard.new(billboardGui, adornee)
 
-sticky:BindToUpdate(function(dt, onScreen, screenDirection)
+sticky:BindToUpdate(function(dt: number, onScreen: boolean, direction: Vector2)
 	print("StickyBillboard is on screen:", onScreen)
 end)
 ```
 
-### `WorldPosition`
-Calculates and returns a `Vector3` of the world position of the StickyBillboard based on its adornee's position and offset properties
+### `Destroy`
+Destroys the StickyBillboard and all created instances and connections. If the StickyBillboard's adornee is an instance, `Destroy` is automatically called when the adornee is destroyed or parented to `nil`.
+
+### `GetAbsoluteSize`: `Vector2`
+Calculates the absolute size in pixels the StickyBillboard should be rendered at.
+
+### Parameters
+|     |     |     |
+| :-- | :-- | :-- |
+| **worldPosition** | *Vector3?* | The position to calculate the size for. Defaults to `:GetWorldPosition()` |
+
+### `GetAdorneeBoundingBox`: `(CFrame, Vector3)`
+Calculates the bounding box of the StickyBillboard's adornee relative to a given orientation.
+
+### Parameters
+|     |     |     |
+| :-- | :-- | :-- |
+| **orientation** | *CFrame?* | The orientation of the bounding box. Defaults to the adornee's orientation |
+
+### `GetAdorneePosition`: `Vector3`
+Gets the central position of the StickyBillboard's adornee. Normalizes this operation for adornees of different types.
+
+```luau
+local sticky = StickyBillboard.new(billboardGui, Vector3.new(100, 200, 300))
+assert(sticky:GetAdorneePosition() == Vector3.new(100, 200, 300),
+    "Vector3 adornee's positions are always fixed")
+```
+```luau
+local sticky = StickyBillboard.new(billboardGui, workspace.Baseplate)
+assert(sticky:GetAdorneePosition() == workspace.Baseplate.Position,
+    "BasePart adornees use their position property")
+```
+```luau
+local sticky = StickyBillboard.new(billboardGui, Players.LocalPlayer.Character)
+assert(sticky:GetAdorneePosition() == Players.LocalPlayer.Character:GetBoundingBox().Position,
+    "Model adornees use their bounding box position)
+```
+
+### `GetWorldPosition`: `Vector3`
+Calculates and returns the world position of the StickyBillboard based on its adornee's position and offset properties.
 
 ```luau
 local billboardTemplate = ReplicatedStorage.Assets.BillboardGui
@@ -104,11 +142,17 @@ adornee.Position = Vector3.new(0, 5, 0)
 billboardTemplate.StudsOffsetWorldSpace = Vector3.new(0, 5, 0)
 
 local sticky = StickyBillboard.new(billboardTemplate, adornee)
-print(sticky:WorldPosition()) -- Vector3.new(0, 10, 0)
+print(sticky:GetWorldPosition()) -- Vector3.new(0, 10, 0)
 ```
 
-### `Destroy`
-Destroys the StickyBillboard and all created instances and connections. If the StickyBillboard's adornee is an instance, `Destroy` is automatically called when the adornee is destroyed or parented to `nil`.
+### `IsA`: `boolean`
+Persists the `:IsA()` method from Roblox Instances, allowing easy comparisons of StickyBillboard and BillboardGui instances.
+
+```luau
+local sticky = StickyBillboard.new(billboardGui, Vector3.zero)
+assert(sticky:IsA("StickyBillboard"))
+assert(sticky:IsA("BillboardGui") == false)
+```
 
 <br>
 
@@ -149,7 +193,7 @@ There are a few properties that can be used to read and/or change the state of t
   - `AlwaysOnTop` (default = `true`)
   - `LightInfluence` (default = `0`)
   - `PlayerToHideFrom` (default = `nil`)
-  - `ResetOnSpawn` (default = `false)`
+  - `ResetOnSpawn` (default = `false`)
   - `ZIndexBehavior` (default = `Sibling`)
 - The size of the StickyBillboard Container cannot be changed
 - If template BillboardGui is sized with Scale, `Options.OffScreenSize` must be defined
